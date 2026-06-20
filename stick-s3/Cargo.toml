@@ -1,5 +1,5 @@
 [package]
-name = "stick_s3_adv"
+name = "stick_s3"
 version = "0.1.0"
 edition = "2021"
 

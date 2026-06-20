@@ -1334,11 +1334,11 @@ dependencies = [
  "esp-idf-hal",
  "esp-idf-svc",
  "log",
- "stick_s3_adv",
+ "stick_s3",
 ]
 
 [[package]]
-name = "stick_s3_adv"
+name = "stick_s3"
 version = "0.1.0"
 dependencies = [
  "display-interface",

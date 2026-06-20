@@ -13,7 +13,7 @@ use embedded_graphics::{
 };
 use embedded_hal::{delay::DelayNs, i2c::I2c as _};
 use esp_idf_hal::{delay::Ets, gpio::PinDriver, peripherals::Peripherals};
-use stick_s3_adv::{
+use stick_s3::{
     buttons::Buttons, display::Display, es8311, framebuffer::Fb, i2c_bus::I2cBus, imu::Imu,
     mic::Mic, pmic, sleep, speaker::Speaker, HEIGHT, WIDTH,
 };
@@ -49,7 +49,7 @@ fn main() {
 
     // ── IMU ──
     let mut imu = Imu::new(i2c_bus.acquire(), &mut delay).ok();
-    let mut imu_data = stick_s3_adv::imu::ImuData::default();
+    let mut imu_data = stick_s3::imu::ImuData::default();
 
     // ── 音频电源 + ES8311 编解码器（Mic + Speaker 共享） ──
     {
@@ -93,7 +93,7 @@ fn main() {
 
     // ── WiFi ──
     let mut wifi_ip = String::from("wifi ready");
-    let mut wifi = stick_s3_adv::wifi::Wifi::new(p.modem).ok();
+    let mut wifi = stick_s3::wifi::Wifi::new(p.modem).ok();
     let mut wifi_connecting = false;
     let mut wifi_connected = false;
 
