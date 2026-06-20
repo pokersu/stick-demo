@@ -14,7 +14,7 @@ use embedded_graphics::{
 use embedded_hal::{delay::DelayNs, i2c::I2c as _};
 use esp_idf_hal::{delay::Ets, gpio::PinDriver, peripherals::Peripherals};
 use stick_s3::{
-    battery::Battery, buttons::Buttons, display::Display, es8311, framebuffer::Fb,
+    buttons::Buttons, display::Display, es8311, framebuffer::Fb,
     i2c_bus::I2cBus, imu::Imu, mic::Mic, pmic, sleep, speaker::Speaker, HEIGHT, WIDTH,
 };
 
@@ -88,9 +88,6 @@ fn main() {
     // ── 扬声器 (I2S0 TX) — 暂时禁用（与 Mic 时钟冲突） ──
     let _speaker: Option<Speaker> = None;
 
-    // ── 电池 ──
-    let mut battery = Battery::new(p.adc1, pins.gpio8).ok();
-
     // ── 按键 ──
     let mut btns = Buttons::new(pins.gpio11, pins.gpio12);
 
@@ -142,13 +139,17 @@ fn main() {
                 s.clear(); let _ = write!(s, "T {:4.1} C", imu_data.temp);
                 let _ = Text::new(&s, Point::new(4, y), white).draw(&mut fb); y += 17;
 
-                // 电池
-                if let Some(ref mut bat) = battery {
-                    let mv: u32 = bat.read_mv();
-                    let pct = bat.pct();
+                // 电池（通过 M5PM1 I2C 读取）
+                {
+                    let mut i2c = i2c_bus.acquire();
+                    let mv = stick_s3::battery::Battery::read_mv(&mut i2c);
+                    let charging = stick_s3::battery::Battery::is_charging(&mut i2c);
+                    let pct = stick_s3::battery::Battery::pct(mv);
+                    // drop(i2c) 在此释放
                     s.clear();
                     if mv > 0 {
-                        let _ = write!(s, "BAT {:>3}% {:4.1}V", pct, mv as f32 / 1000.0);
+                        let ch = if charging { '+' } else { ' ' };
+                        let _ = write!(s, "BAT {:>3}% {:4.1}V{}", pct, mv as f32 / 1000.0, ch);
                     } else {
                         let _ = write!(s, "BAT ---");
                     }

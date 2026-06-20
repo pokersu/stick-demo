@@ -1,55 +1,43 @@
-//! 电池电压监测（ADC1 GPIO8, 2:1 分压）
+//! 电池电压监测 — 通过 M5PM1 读取
 //!
-//! M5StickS3 Plus: 电池通过 GPIO8 (ADC1_CH7) 监测。
-//! 使用 esp-idf-hal 的 AdcDriver / AdcChannelDriver（安全封装）。
+//! M5StickS3 Plus 的电池连接到 M5PM1 电源管理芯片（I2C 0x6E），
+//! 而非 ESP32 的 ADC。通过读取 PMIC 寄存器获取电压和充电状态。
+//!
+//! 参考 M5Unified Power_Class。
+//!
+//! ## M5PM1 寄存器
+//! - 0x04 PWR_SRC: bit0=5VIN, bit1=5VINOUT, bit2=BAT
+//! - 0x06 PWR_CFG: bit0=CHG_EN
+//! - 0x22/0x23 VBAT: 电池电压 (小端, mV)
+//! - 0x24/0x25 VIN: 5VIN 电压 (小端, mV)
 
-use esp_idf_hal::{
-    adc::{
-        oneshot::{config::AdcChannelConfig, AdcChannelDriver, AdcDriver},
-        ADC1,
-    },
-    gpio::Gpio8,
-    sys::EspError,
-};
+use embedded_hal::i2c::I2c;
 
-const ADC_RATIO: f32 = 2.0;
+const PMIC_ADDR: u8 = 0x6E;
 
-/// 电池电压监测
-///
-/// 持有 ADC 驱动和通道，提供安全的电压读取。
-pub struct Battery<'d> {
-    adc: AdcDriver<'d, <ADC1<'d> as esp_idf_hal::adc::Adc>::AdcUnit>,
-    channel: AdcChannelDriver<
-        'd,
-        <Gpio8<'d> as esp_idf_hal::gpio::ADCPin>::AdcChannel,
-        &'d AdcDriver<'d, <ADC1<'d> as esp_idf_hal::adc::Adc>::AdcUnit>,
-    >,
-}
+pub struct Battery;
 
-impl<'d> Battery<'d> {
-    /// 创建电池电压监测实例
-    pub fn new(adc1: ADC1<'d>, pin: Gpio8<'d>) -> Result<Self, EspError> {
-        let adc = AdcDriver::new(adc1)?;
-        let config = AdcChannelConfig {
-            attenuation: esp_idf_hal::adc::attenuation::DB_12,
-            ..Default::default()
-        };
-        // SAFETY: We create both adc and channel together and they live
-        // as long as the struct. The channel borrows the adc, which is fine
-        // because they share the same lifetime and neither is moved after creation.
-        let channel = AdcChannelDriver::new(unsafe { &*(&adc as *const _) }, pin, &config)?;
-        Ok(Self { adc, channel })
+impl Battery {
+    /// 读取电池电压 (mV)
+    pub fn read_mv<I2C: I2c>(i2c: &mut I2C) -> u32 {
+        let mut buf = [0u8; 2];
+        if i2c.write_read(PMIC_ADDR, &[0x22], &mut buf).is_ok() {
+            let mv = (buf[1] as u32) << 8 | buf[0] as u32;
+            if mv > 0 && mv < 5000 { return mv; }
+        }
+        0
     }
 
-    /// 读取电池电压 (mV)，乘以 2:1 分压比
-    pub fn read_mv(&mut self) -> u32 {
-        let mv = self.adc.read(&mut self.channel).unwrap_or(0) as u32;
-        (mv as f32 * ADC_RATIO) as u32
+    /// 检测是否正在充电（5VIN 有电即视为充电中）
+    pub fn is_charging<I2C: I2c>(i2c: &mut I2C) -> bool {
+        let mut reg = [0u8];
+        i2c.write_read(PMIC_ADDR, &[0x04], &mut reg).ok()
+            .map(|_| reg[0] & 0x01 != 0) // bit0=5VIN 有效
+            .unwrap_or(false)
     }
 
     /// 估算电池百分比（基于 3.3V~4.15V 范围）
-    pub fn pct(&mut self) -> u32 {
-        let mv = self.read_mv();
+    pub fn pct(mv: u32) -> u32 {
         ((mv as i32 - 3300) * 100 / (4150 - 3300)).clamp(0, 100) as u32
     }
 }
