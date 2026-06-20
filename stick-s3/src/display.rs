@@ -27,6 +27,8 @@ const CASET:   u8 = 0x2A;
 const RASET:   u8 = 0x2B;
 const RAMWR:   u8 = 0x2C;
 const MADCTL:  u8 = 0x36;
+const DISPOFF: u8 = 0x28;
+const SLPIN:   u8 = 0x10;
 const COLMOD:  u8 = 0x3A;
 
 // ST7789 扩展命令 (M5GFX Panel_ST7789)
@@ -194,8 +196,8 @@ impl<'a> Display<'a> {
 
 impl DisplaySleep for Display<'_> {
     fn sleep(&mut self) {
-        self.cmd(0x28); // DISPOFF
-        self.cmd(0x10); // SLPIN
+        self.cmd(DISPOFF);
+        self.cmd(SLPIN);
     }
 }
 

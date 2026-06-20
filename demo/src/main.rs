@@ -142,10 +142,8 @@ fn main() {
                 // 电池（通过 M5PM1 I2C 读取）
                 {
                     let mut i2c = i2c_bus.acquire();
-                    let mv = stick_s3::battery::Battery::read_mv(&mut i2c);
-                    let charging = stick_s3::battery::Battery::is_charging(&mut i2c);
+                    let (mv, charging) = stick_s3::battery::Battery::read_all(&mut i2c);
                     let pct = stick_s3::battery::Battery::pct(mv);
-                    // drop(i2c) 在此释放
                     s.clear();
                     if mv > 0 {
                         let ch = if charging { '+' } else { ' ' };

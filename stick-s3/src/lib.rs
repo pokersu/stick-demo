@@ -56,8 +56,8 @@
 //!       SDA=47, SCL=48   |  Others: Buttons=11/12, LED=10, BAT=8
 //! ```
 
-// ── 废弃模块 ──（audio.rs 已拆分为 mic/speaker/es8311）
-// pub mod audio;
+// ── 废弃模块 ──
+// pub mod audio; // audio.rs 已拆分为 mic/speaker/es8311
 
 // ── 显示 ──
 pub mod display;
