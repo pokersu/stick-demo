@@ -1,0 +1,3 @@
+[workspace]
+members = ["stick-s3", "demo"]
+resolver = "2"

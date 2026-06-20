@@ -1,0 +1,18 @@
+# Build artifacts
+target/
+.embuild/
+.cargo/
+.codegraph/
+
+# IDE
+.idea/
+.vscode/
+
+# Environment
+.env
+
+# macOS
+.DS_Store
+
+# Secrets (WiFi passwords etc.)
+include/secrets.h

@@ -1,0 +1,18 @@
+[package]
+name = "stick-demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+stick_s3_adv = { path = "../stick-s3" }
+esp-idf-svc = { version = "0.52", default-features = false, features = ["alloc"] }
+embedded-hal = "1"
+esp-idf-hal = "0.46"
+embedded-graphics = "0.8"
+log = "0.4"
+
+[features]
+default = ["esp-idf-svc/native"]
+
+[build-dependencies]
+embuild = { version = "0.31", features = ["espidf"] }
