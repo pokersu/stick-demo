@@ -18,8 +18,8 @@ use stick_s3_adv::{
     mic::Mic, pmic, sleep, speaker::Speaker, HEIGHT, WIDTH,
 };
 
-const SSID: &str = "gaea_slow";
-const PASS: &str = "7sevenmusic";
+const SSID: &str = "your_ssid";
+const PASS: &str = "your_password";
 
 fn main() {
     esp_idf_svc::sys::link_patches();
