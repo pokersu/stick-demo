@@ -4,6 +4,12 @@
 //!   - Panel_ST7789 初始化命令序列
 //!   - Panel_LCD::setRotation() 行列偏移算法
 //!   - Panel_LCD::setWindow() CASET/RASET 写入
+//!
+//! ## 坑点
+//! - **SLPOUT 后延时 ≥130ms**，过短会导致面板未完全退出睡眠
+//! - **每次 flush 必须重设 CASET/RASET**，芯片内部寄存器是易失的
+//! - **横屏时 MADCTL=0x64\**，colstart/rowstart 算法来自 M5GFX
+//! - **INVON 必须开启**，否则颜色反相（M5StickS3 面板特性）
 
 use crate::sleep::DisplaySleep;
 
@@ -23,12 +29,12 @@ const SLPOUT:  u8 = 0x11;
 const INVOFF:  u8 = 0x20;
 const INVON:   u8 = 0x21;
 const DISPON:  u8 = 0x29;
+const DISPOFF: u8 = 0x28;
 const CASET:   u8 = 0x2A;
 const RASET:   u8 = 0x2B;
 const RAMWR:   u8 = 0x2C;
-const MADCTL:  u8 = 0x36;
-const DISPOFF: u8 = 0x28;
 const SLPIN:   u8 = 0x10;
+const MADCTL:  u8 = 0x36;
 const COLMOD:  u8 = 0x3A;
 
 // ST7789 扩展命令 (M5GFX Panel_ST7789)
@@ -65,7 +71,9 @@ const MADCTL_TABLE: [u8; 8] = [
 // M5GFX rowstart 条件掩码
 const ROWSTART_MASK: u8 = 0b10010110;
 
-// 面板物理参数 (M5StickS3)
+// ⚠ 面板物理参数 (M5StickS3)
+// ST7789 控制器是 240×320，M5StickS3 面板只用了 135×240 区域
+// OFFSET_X=52, OFFSET_Y=40 是物理映射偏移，不可改
 const MEMORY_WIDTH:  u16 = 240;
 const MEMORY_HEIGHT: u16 = 320;
 const PANEL_WIDTH:   u16 = 135;
@@ -113,10 +121,11 @@ impl<'a> Display<'a> {
         rst_pulse(&mut self._rst, delay);
 
         self.cmd(SWRESET); delay.delay_us(150_000);
-        self.cmd(SLPOUT);  delay.delay_ms(130);   // M5GFX: 130ms after SLPOUT
+        // ⚠ SLPOUT 后必须等待 130ms（M5GFX 标准），过短会导致花屏
+        self.cmd(SLPOUT);  delay.delay_ms(130);
         self.cmd(INVOFF);
 
-        // 面板调优
+        // 面板调优 (M5GFX 标准)
         self.cmd_data(CMD_GCTRL,    &[0x35]);
         self.cmd_data(CMD_VCOMS,   &[0x28]);
         self.cmd_data(CMD_LCMCTRL, &[0x0C]);
@@ -133,36 +142,38 @@ impl<'a> Display<'a> {
                                            0x47, 0x0E, 0x1C, 0x17, 0x1B, 0x1E]);
 
         self.cmd_data(COLMOD, &[0x55]); // RGB565
+        // ⚠ 必须开启 INVON，M5StickS3 面板颜色取反
         self.cmd(INVON);   delay.delay_us(10_000);
         self.cmd(DISPON);  delay.delay_us(10_000);
 
-        // 默认横屏
+        // 默认横屏 (rotation=1)
         self.set_rotation(1);
     }
 
-    // ── 旋转 (M5GFX setRotation + update_madctl) ──
-
+    /// 设置旋转方向 (M5GFX setRotation + update_madctl)
     pub fn set_rotation(&mut self, r: u8) {
-        let internal = (r & 3) | ((r & 4) ^ 0);  // offset_rotation=0
+        let internal = (r & 3) | ((r & 4) ^ 0);
 
         let (mut ox, mut oy) = (OFFSET_X, OFFSET_Y);
         let (mut pw, mut ph) = (PANEL_WIDTH, PANEL_HEIGHT);
         let (mut mw, mut mh) = (MEMORY_WIDTH, MEMORY_HEIGHT);
 
+        // ⚠ 当 internal & 1 (MV=1) 时，列和行物理意义互换
+        // 需要同步交换偏移和面板尺寸
         if internal & 1 != 0 {
             core::mem::swap(&mut ox, &mut oy);
             core::mem::swap(&mut pw, &mut ph);
             core::mem::swap(&mut mw, &mut mh);
         }
 
+        // ⚠ colstart/rowstart 偏移算法来自 M5GFX Panel_LCD::setRotation
         self.colstart = if internal & 2 != 0 { mw - (pw + ox) } else { ox };
         self.rowstart = if ((1u8 << internal) & ROWSTART_MASK) != 0 { mh - (ph + oy) } else { oy };
 
         self.cmd_data(MADCTL, &[MADCTL_TABLE[internal as usize]]);
     }
 
-    // ── 窗口 (M5GFX setWindow) ──
-
+    /// 设置写入窗口 (M5GFX setWindow)
     fn set_window(&mut self, xs: u16, ys: u16, xe: u16, ye: u16) {
         self.cmd(CASET);
         self.di.send_data(DataFormat::U8(&(self.colstart + xs).to_be_bytes())).unwrap();
@@ -172,8 +183,9 @@ impl<'a> Display<'a> {
         self.di.send_data(DataFormat::U8(&(self.rowstart + ye).to_be_bytes())).unwrap();
     }
 
-    // ── 全屏刷新 ──
-
+    /// 全屏刷新
+    ///
+    /// ⚠ 每次 flush 必须重设 CASET/RASET，ST7789 内部寄存器是易失的
     pub fn flush(&mut self, buf: &[u16]) {
         let w = WIDTH as u16;
         let h = HEIGHT as u16;
@@ -181,8 +193,6 @@ impl<'a> Display<'a> {
         self.cmd(RAMWR);
         self.di.send_data(DataFormat::U16(buf)).unwrap();
     }
-
-    // ── 底层 ──
 
     fn cmd(&mut self, b: u8) {
         self.di.send_commands(DataFormat::U8(&[b])).unwrap();

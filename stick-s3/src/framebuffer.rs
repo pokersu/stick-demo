@@ -1,4 +1,10 @@
 //! embedded-graphics 兼容的 RGB565 framebuffer
+//!
+//! 尺寸由 lib.rs 中的 WIDTH/HEIGHT 决定（当前为 240×135 横屏）。
+//!
+//! ## 坑点
+//! - **Fb 只是对 &mut [u16] 的包装**，不持有内存，由调用方管理生命周期
+//! - 坐标范围由 embedded-graphics 的 `Size::new(WIDTH, HEIGHT)` 决定
 
 use crate::{HEIGHT, WIDTH};
 use embedded_graphics::{
@@ -8,9 +14,6 @@ use embedded_graphics::{
     Pixel,
 };
 
-/// RGB565 framebuffer — 兼容 embedded-graphics DrawTarget
-///
-/// 尺寸由 lib.rs 中的 WIDTH/HEIGHT 决定（当前为 240×135 横屏）。
 pub struct Fb<'a> {
     pub buf: &'a mut [u16],
 }

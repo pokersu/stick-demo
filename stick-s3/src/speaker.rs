@@ -2,6 +2,11 @@
 //!
 //! 硬件：I2S0, MCK=18, BCK=17, WS=15, DATA=14
 //! ES8311 + NS4168 初始化由外部完成。
+//!
+//! ## 坑点
+//! - **I2S0 与 I2S1 (Mic) 共享 BCK=17, WS=15, MCK=18**，
+//!   同时激活时采样率必须一致，否则时钟冲突
+//! - **NS4168 功放初始化**由外部通过 I2C 完成（不是所有硬件版本都有）
 
 use esp_idf_hal::{
     gpio::{InputPin, OutputPin},
@@ -18,7 +23,6 @@ pub struct Speaker<'d> {
 }
 
 impl<'d> Speaker<'d> {
-    /// 创建扬声器驱动（ES8311 + NS4168 已初始化）
     pub fn new(
         i2s: impl esp_idf_hal::i2s::I2s + 'd,
         mclk: impl OutputPin + InputPin + 'd,
@@ -42,11 +46,11 @@ impl<'d> Speaker<'d> {
         Ok(Self { tx })
     }
 
-    /// 播放滴声（阻塞，50ms）
+    /// 播放滴声（阻塞，50ms，1kHz）
     pub fn beep(&mut self) {
         self.tx.tx_enable().ok();
         let total = (SAMPLE_RATE * 50 / 1000) as usize;
-        let cycle = (SAMPLE_RATE / 1000) as usize; // 1kHz
+        let cycle = (SAMPLE_RATE / 1000) as usize;
         let mut buf = [0u8; 256];
         let mut w = 0;
         while w < total * 4 {

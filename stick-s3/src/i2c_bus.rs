@@ -2,6 +2,11 @@
 //!
 //! `I2cBus` 用 `RefCell` 包装 `I2cDriver`，
 //! 通过 `acquire()` 创建 `I2cProxy` 实现多设备安全共享。
+//!
+//! ## 坑点
+//! - **RefCell 运行时检查借用规则**，同一时间只能有一个 `I2cProxy` 活跃
+//! - **acquire() 返回的 I2cProxy 必须在同一行用完释放**（或显式 drop），
+//!   否则下一个 acquire() 会 panic（RefCell 双重借用）
 
 use std::cell::RefCell;
 use esp_idf_hal::i2c::{I2cDriver, I2cError};
@@ -17,7 +22,6 @@ impl<'a> I2cBus<'a> {
 
     pub fn acquire(&self) -> I2cProxy<'_, 'a> { I2cProxy { bus: self } }
 
-    /// 临时借用 I2cDriver（用于需要 `&mut I2cDriver` 的初始化）
     pub fn with_mut<R>(&self, f: impl FnOnce(&mut I2cDriver<'a>) -> R) -> R {
         f(&mut self.inner.borrow_mut())
     }

@@ -3,17 +3,12 @@
 //! M5StickS3 Plus 的电池连接到 M5PM1 电源管理芯片（I2C 0x6E），
 //! 而非 ESP32 的 ADC。通过读取 PMIC 寄存器获取电压和充电状态。
 //!
+//! ## 坑点
+//! - **电池不是接 ESP32 ADC**，是通过 M5PM1 读取 (0x22/0x23)
+//! - **GPIO0 没有连接充电状态信号**（M5StickS3 Plus 硬件差异），改用 PWR_SRC 判断
+//! - **充电状态**通过 0x04 bit0 (5VIN) 判断有 USB 即充电
+//!
 //! 参考 M5Unified Power_Class。
-//!
-//! ## M5PM1 寄存器
-//! - 0x04 PWR_SRC: bit0=5VIN, bit1=5VINOUT, bit2=BAT
-//! - 0x22/0x23 VBAT: 电池电压 (小端, mV)
-//!
-//! ## 用法
-//! ```ignore
-//! let (mv, chg) = Battery::read_all(&mut i2c);
-//! let pct = Battery::pct(mv);
-//! ```
 
 use embedded_hal::i2c::I2c;
 
@@ -31,15 +26,16 @@ impl Battery {
         {
             return (0, false);
         }
+        // ⚠ M5PM1 寄存器是小端格式: (VBAT_H << 8) | VBAT_L
         let mv = (vbat[1] as u32) << 8 | vbat[0] as u32;
+        // ⚠ 过滤异常值（I2C 错误时可能读到 0xFFFF）
         let mv = if mv > 0 && mv < 5000 { mv } else { 0 };
-        (mv, (pwr[0] & 0x01) != 0) // bit0=5VIN
+        // ⚠ 充电判断：PWR_SRC(0x04) bit0=5VIN
+        // M5Unified 用 GPIO0 引脚判断，但 Plus 硬件上该引脚未连接
+        (mv, (pwr[0] & 0x01) != 0)
     }
 
-    /// 读取电池电压 (mV)
     pub fn read_mv<I2C: I2c>(i2c: &mut I2C) -> u32 { Self::read_all(i2c).0 }
-
-    /// 检测是否正在充电（5VIN 有电）
     pub fn is_charging<I2C: I2c>(i2c: &mut I2C) -> bool { Self::read_all(i2c).1 }
 
     /// 估算电池百分比（基于 3.3V~4.15V 范围）

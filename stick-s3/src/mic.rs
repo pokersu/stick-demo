@@ -2,6 +2,11 @@
 //!
 //! 硬件：I2S1, MCK=18, BCK=17, WS=15, DATA=16
 //! ES8311 初始化由外部完成，本模块仅配置 I2S RX。
+//!
+//! ## 坑点
+//! - **I2S1 与 I2S0 (Speaker) 共享 BCK=17, WS=15, MCK=18**，
+//!   同时激活时采样率必须一致，否则时钟冲突
+//! - **ES8311 的 ADC 需要先初始化**（由外部调用 es8311::init_es8311）
 
 use esp_idf_hal::{
     gpio::{InputPin, OutputPin},
@@ -17,7 +22,6 @@ pub struct Mic<'d> {
 }
 
 impl<'d> Mic<'d> {
-    /// 创建麦克风驱动（ES8311 已初始化）
     pub fn new(
         i2s: impl esp_idf_hal::i2s::I2s + 'd,
         mclk: impl OutputPin + InputPin + 'd,
