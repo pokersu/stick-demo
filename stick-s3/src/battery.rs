@@ -28,11 +28,15 @@ impl Battery {
         0
     }
 
-    /// 检测是否正在充电（5VIN 有电即视为充电中）
+    /// 检测是否正在充电（USB 电源已接入）
+    ///
+    /// 通过 PWR_SRC(0x04) bit0 判断 5VIN 是否存在。
+    /// M5StickS3 Plus 的 GPIO0 未连接充电状态信号，
+    /// 改用电源来源寄存器检测更可靠。
     pub fn is_charging<I2C: I2c>(i2c: &mut I2C) -> bool {
         let mut reg = [0u8];
         i2c.write_read(PMIC_ADDR, &[0x04], &mut reg).ok()
-            .map(|_| reg[0] & 0x01 != 0) // bit0=5VIN 有效
+            .map(|_| reg[0] & 0x01 != 0) // bit0=5VIN
             .unwrap_or(false)
     }
 
