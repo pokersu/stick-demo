@@ -33,6 +33,9 @@ const ES8311_INIT: &[(u8, u8)] = &[
     (0x1C, 0x6A), // ADC Equalizer bypass, cancel DC offset
 ];
 
+/// 初始化 ES8311 编解码器（Speaker DAC + Mic ADC 合并配置）
+///
+/// ⚠ 只能调用一次！重复调用 RESET 会冲掉前一次配置。
 pub fn init_es8311<I2C: embedded_hal::i2c::I2c>(i2c: &mut I2C) -> Result<(), &'static str> {
     for &(reg, val) in ES8311_INIT {
         i2c.write(ES8311_ADDR, &[reg, val]).map_err(|_| "ES8311 I2C")?;

@@ -35,9 +35,10 @@ impl<'d> Buttons<'d> {
     }
 
     /// Button A 当前是否按下
+    /// Button A 当前是否按下（低电平有效）
     pub fn btn_a_is_pressed(&self) -> bool { self.btn_a.is_low() }
 
-    /// Button B 当前是否按下
+    /// Button B 当前是否按下（低电平有效）
     pub fn btn_b_is_pressed(&self) -> bool { self.btn_b.is_low() }
 
     /// Button A 是否从上次 tick 至今被按下（边沿检测）
@@ -61,13 +62,13 @@ impl<'d> Buttons<'d> {
         self.btn_a_was_pressed() || self.btn_b_was_pressed()
     }
 
-    /// 更新状态（在循环中调用以跟踪边沿）
+    /// 更新按钮状态（在循环中调用以保持边沿检测准确）
     pub fn update(&mut self) {
         self.a_prev = self.btn_a.is_high();
         self.b_prev = self.btn_b.is_high();
     }
 
-    /// 释放借用
+    /// 释放按键引脚
     pub fn free(self) -> (PinDriver<'d, Input>, PinDriver<'d, Input>) {
         (self.btn_a, self.btn_b)
     }
@@ -75,7 +76,10 @@ impl<'d> Buttons<'d> {
 
 /// 按键标识
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// 按键标识
 pub enum Button {
+    /// Button A (GPIO11)
     A,
+    /// Button B (GPIO12)
     B,
 }

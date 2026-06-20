@@ -22,6 +22,7 @@ pub struct Mic<'d> {
 }
 
 impl<'d> Mic<'d> {
+    /// 创建麦克风驱动（需要先外部初始化 ES8311）
     pub fn new(
         i2s: impl esp_idf_hal::i2s::I2s + 'd,
         mclk: impl OutputPin + InputPin + 'd,
@@ -43,6 +44,7 @@ impl<'d> Mic<'d> {
     }
 
     /// 读取麦克风音量 (0-100)
+    /// 读取麦克风音量 (0-100)，基于峰值
     pub fn read_volume(&mut self) -> u8 {
         let mut buf = [0u8; 128];
         let n = self.rx.read(&mut buf, 0u32).unwrap_or(0);

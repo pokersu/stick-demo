@@ -12,6 +12,14 @@ use esp_idf_svc::{
     wifi::{BlockingWifi, ClientConfiguration, Configuration, EspWifi},
 };
 
+/// WiFi STA 模式驱动 — 完全非阻塞
+///
+/// ## 用法
+/// ```ignore
+/// let mut wifi = Wifi::new(modem)?;
+/// wifi.start_connect(ssid, pass);
+/// // 主循环中通过 ip() 检查是否连上
+/// ```
 pub struct Wifi {
     wifi: BlockingWifi<EspWifi<'static>>,
     configured: bool,
@@ -28,6 +36,7 @@ impl Wifi {
         Ok(Self { wifi, configured: false })
     }
 
+    /// 获取 STA 的 IPv4 地址（`None` 表示未连上）
     pub fn ip(&self) -> Option<embedded_svc::ipv4::Ipv4Addr> {
         self.wifi.wifi().sta_netif().get_ip_info().ok().map(|i| i.ip)
     }

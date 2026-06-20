@@ -13,16 +13,22 @@ use embedded_hal::{delay::DelayNs, i2c::I2c};
 
 mod cfg { include!("bmi270_config.rs"); }
 
+/// IMU 六轴数据（加速度 + 陀螺仪 + 温度）
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ImuData {
+    /// X/Y/Z 轴加速度 (m/s²)
     pub acc_x: f32, pub acc_y: f32, pub acc_z: f32,
+    /// X/Y/Z 轴角速度 (°/s)
     pub gyr_x: f32, pub gyr_y: f32, pub gyr_z: f32,
+    /// 温度 (°C)
     pub temp: f32,
 }
 
+/// BMI270 IMU 驱动
 pub struct Imu<I2C: I2c> { i2c: I2C, addr: u8 }
 
 impl<I2C: I2c> Imu<I2C> {
+    /// 初始化 BMI270：加载配置、等待 init_ok、使能传感器
     pub fn new(mut i2c: I2C, delay: &mut impl DelayNs) -> Result<Self, Error<I2C::Error>> {
         let addr = probe(&mut i2c).ok_or(Error::Custom("BMI270 not found"))?;
 
@@ -108,6 +114,7 @@ impl<I2C: I2c> Imu<I2C> {
         Ok(Self { i2c, addr })
     }
 
+    /// 读取 IMU 全量数据（加速度 + 陀螺仪 + 温度）
     pub fn read_all(&mut self) -> Result<ImuData, Error<I2C::Error>> {
         // 先检查 STATUS(0x03) 的 drdy_acc(bit7)/drdy_gyr(bit6)
         let mut st = [0u8];
@@ -158,4 +165,5 @@ fn probe<I2C: I2c>(i2c: &mut I2C) -> Option<u8> {
 }
 
 #[derive(Debug)]
+/// IMU 驱动错误类型
 pub enum Error<E> { I2c(E), Custom(&'static str) }

@@ -15,9 +15,12 @@ use esp_idf_hal::{
 
 const ADDR: u8 = 0x6E;
 const TMO: u32 = 10;
+/// M5PM1 I2C 地址（0x6E）
 pub const PMIC_ADDR: u8 = ADDR;
 
-/// 初始化 M5PM1：使能背光电源 + 设置电源保持
+/// 初始化 M5PM1：探测 + 配置背光/电源保持
+///
+/// 依次尝试 I2C0 和 I2C1（ESP-IDF 驱动特性）。
 pub fn init_pmic() -> Option<I2cDriver<'static>> {
     probe_i2c0().or_else(|| probe_i2c1())
 }

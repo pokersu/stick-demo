@@ -14,6 +14,9 @@ use embedded_graphics::{
     Pixel,
 };
 
+/// embedded-graphics RGB565 framebuffer
+///
+/// 对 `&mut [u16]` 的简单包装，不持有内存。
 pub struct Fb<'a> {
     pub buf: &'a mut [u16],
 }

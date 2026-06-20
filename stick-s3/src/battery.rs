@@ -35,7 +35,9 @@ impl Battery {
         (mv, (pwr[0] & 0x01) != 0)
     }
 
+    /// 读取电池电压 (mV)
     pub fn read_mv<I2C: I2c>(i2c: &mut I2C) -> u32 { Self::read_all(i2c).0 }
+    /// 检测是否正在充电（5VIN 有电）
     pub fn is_charging<I2C: I2c>(i2c: &mut I2C) -> bool { Self::read_all(i2c).1 }
 
     /// 估算电池百分比（基于 3.3V~4.15V 范围）

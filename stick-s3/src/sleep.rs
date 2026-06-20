@@ -24,10 +24,16 @@ pub fn config_wakeup() {
 
 /// 进入深度睡眠
 ///
-/// 1. 调用 `cleanup` 释放外设资源
-/// 2. 关背光、关显示
-/// 3. 等待按键释放（防 EXT1 立即唤醒）
-/// 4. 执行 `esp_deep_sleep_start()`
+/// - 调用 `cleanup` 释放外设资源
+/// - 关背光、关显示
+/// - 等待按键释放（防 EXT1 立即唤醒）
+/// - 执行 `esp_deep_sleep_start()`（不返回）
+///
+/// # 参数
+/// - `bl` — 背光引脚
+/// - `display` — 显示驱动（需实现 [`DisplaySleep`]）
+/// - `btn_b_is_pressed` — 判断 BtnB 状态的闭包
+/// - `cleanup` — 释放外设的闭包（drop mic/wifi 等）
 pub fn enter(
     bl: &mut PinDriver<'_, Output>,
     display: &mut impl DisplaySleep,
@@ -51,7 +57,10 @@ pub fn enter(
     unsafe { esp_deep_sleep_start(); }
 }
 
-/// 显示驱动需实现的睡眠 trait
+/// 显示驱动睡眠 trait
+///
+/// 实现此 trait 的类型可以被 [`enter`] 在深睡前关闭显示。
 pub trait DisplaySleep {
+    /// 关闭显示（DISPOFF + SLPIN）
     fn sleep(&mut self);
 }

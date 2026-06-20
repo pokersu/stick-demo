@@ -23,6 +23,7 @@ pub struct Speaker<'d> {
 }
 
 impl<'d> Speaker<'d> {
+    /// 创建扬声器驱动（需要先外部初始化 ES8311）
     pub fn new(
         i2s: impl esp_idf_hal::i2s::I2s + 'd,
         mclk: impl OutputPin + InputPin + 'd,
@@ -47,6 +48,7 @@ impl<'d> Speaker<'d> {
     }
 
     /// 播放滴声（阻塞，50ms，1kHz）
+    /// 播放滴声（阻塞，50ms，1kHz 方波）
     pub fn beep(&mut self) {
         self.tx.tx_enable().ok();
         let total = (SAMPLE_RATE * 50 / 1000) as usize;

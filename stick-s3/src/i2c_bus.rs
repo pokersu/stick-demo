@@ -13,6 +13,10 @@ use esp_idf_hal::i2c::{I2cDriver, I2cError};
 
 const TMO: u32 = 2000;
 
+/// I2C 共享总线（基于 RefCell 实现多设备安全共享）
+///
+/// ⚠ `acquire()` 返回的 `I2cProxy` 必须在同一作用域用完释放，
+/// 否则下一个 `acquire()` 会 panic（RefCell 双重借用）。
 pub struct I2cBus<'a> {
     inner: RefCell<I2cDriver<'a>>,
 }
@@ -27,6 +31,7 @@ impl<'a> I2cBus<'a> {
     }
 }
 
+/// 临时 I2C 代理 — drop 时释放对总线的借用
 pub struct I2cProxy<'a, 'b> { bus: &'a I2cBus<'b> }
 
 impl embedded_hal::i2c::ErrorType for I2cProxy<'_, '_> {

@@ -79,6 +79,7 @@ const MEMORY_HEIGHT: u16 = 320;
 const PANEL_WIDTH:   u16 = 135;
 const PANEL_HEIGHT:  u16 = 240;
 
+/// ST7789 显示驱动（SPI 接口，M5StickS3）
 pub struct Display<'a> {
     di:   SPIInterface<SpiDeviceDriver<'a, SpiDriver<'a>>, PinDriver<'a, Output>>,
     _rst: PinDriver<'a, Output>,
@@ -87,6 +88,15 @@ pub struct Display<'a> {
 }
 
 impl<'a> Display<'a> {
+/// 创建显示驱动（SPI 接口）
+    ///
+    /// # 参数
+    /// - `spi` — SPI2 外设
+    /// - `sclk` — 时钟引脚 (GPIO40)
+    /// - `sdo` — MOSI 引脚 (GPIO39)
+    /// - `cs` — 片选引脚 (GPIO41)
+    /// - `dc` — 数据/命令引脚 (GPIO45)
+    /// - `rst` — 复位引脚 (GPIO21)
     pub fn new(
         spi:  impl SpiAnyPins  + 'a,
         sclk: impl esp_idf_hal::gpio::OutputPin + 'a,
