@@ -1350,6 +1350,7 @@ dependencies = [
  "esp-idf-hal",
  "esp-idf-svc",
  "log",
+ "serde_json",
 ]
 
 [[package]]

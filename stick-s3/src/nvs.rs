@@ -7,8 +7,11 @@
 
 use core::ptr;
 use esp_idf_svc::sys::*;
+use std::sync::Once;
 
 const NVS_RW: i32 = 0x01; // NVS_READWRITE
+
+static NVS_INIT: Once = Once::new();
 
 pub struct Nvs {
     handle: nvs_handle_t,
@@ -16,13 +19,16 @@ pub struct Nvs {
 
 impl Nvs {
     fn init() {
-        unsafe {
-            let r = nvs_flash_init();
-            if r == 0x1100 || r == 0x1106 { // NO_FREE_PAGES | NEW_VERSION_FOUND
-                nvs_flash_erase();
-                nvs_flash_init(); // 再次初始化，返回值已不需要
+        NVS_INIT.call_once(|| {
+            unsafe {
+                let r = nvs_flash_init();
+                if r == 0x1100 || r == 0x1106 { // NO_FREE_PAGES | NEW_VERSION_FOUND
+                    nvs_flash_erase();
+                    nvs_flash_init();
+                }
+                log::info!("NVS initialized");
             }
-        }
+        });
     }
 
     pub fn new(namespace: &str) -> Result<Self, EspError> {

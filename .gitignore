@@ -19,3 +19,4 @@ git-cache/
 
 # Secrets (WiFi passwords etc.)
 include/secrets.h
+provision.json

@@ -1,0 +1,10 @@
+{
+  "wifi": {
+    "MyHomeWiFi": "your_wifi_password",
+    "Office_Guest": "guest_password_123"
+  },
+  "buttons": {
+    "a": "0",
+    "b": "0"
+  }
+}

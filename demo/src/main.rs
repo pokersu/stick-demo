@@ -15,11 +15,9 @@ use embedded_hal::{delay::DelayNs, i2c::I2c as _};
 use esp_idf_hal::{delay::Ets, gpio::PinDriver, peripherals::Peripherals};
 use stick_s3::{
     buttons::Buttons, display::Display, es8311, framebuffer::Fb,
-    i2c_bus::I2cBus, imu::Imu, mic::Mic, nvs::Nvs, pmic, sleep, HEIGHT, WIDTH,
+    i2c_bus::I2cBus, imu::Imu, mic::Mic, nvs::Nvs, pmic, provision, sleep, HEIGHT, WIDTH,
 };
 
-const SSID: &str = "your_ssid";
-const PASS: &str = "your_password";
 
 fn main() {
     esp_idf_svc::sys::link_patches();
@@ -88,6 +86,9 @@ fn main() {
     // ── 扬声器 (I2S0 TX) — 暂时禁用（与 Mic 时钟冲突） ──
     // let _speaker = Speaker::new(...)
 
+    // ── Provision: 将编译时嵌入的配置写入 NVS（仅首次启动时生效） ──
+    provision::apply();
+
     // ── NVS 持久计数（按键 A/B 次数，跨重启保留） ──
     let mut nvs = Nvs::new("buttons").ok();
     let mut btn_a_count: i32 = nvs.as_ref().and_then(|n| n.get_i32("a")).unwrap_or(0);
@@ -99,6 +100,7 @@ fn main() {
 
     // ── WiFi ──
     let mut wifi_ip = String::from("wifi ready");
+    let mut wifi_ssid = String::new();
     let mut wifi = stick_s3::wifi::Wifi::new(p.modem).ok();
     let mut wifi_connecting = false;
     let mut wifi_connected = false;
@@ -228,11 +230,20 @@ fn main() {
                     wifi_ip = String::from("wifi ready");
                     wifi_connecting = false;
                     wifi_connected = false;
+                    wifi_ssid.clear();
                 } else {
-                    log::info!("BtnA: connecting WiFi");
-                    wifi_ip = String::from("connecting...");
-                    wifi_connecting = true;
-                    w.start_connect(SSID, PASS);
+                    log::info!("BtnA: scanning + auto connect");
+                    match w.auto_connect() {
+                        Some(ssid) => {
+                            wifi_ssid = ssid;
+                            wifi_ip = format!("connecting {}", wifi_ssid);
+                            wifi_connecting = true;
+                        }
+                        None => {
+                            wifi_ip = String::from("no known wifi");
+                            wifi_connecting = false;
+                        }
+                    }
                 }
             }
         }

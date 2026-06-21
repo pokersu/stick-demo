@@ -85,6 +85,7 @@ pub mod battery;
 
 // ── WiFi (feature-gated) ──
 #[cfg(feature = "wifi")] pub mod nvs;
+#[cfg(feature = "wifi")] pub mod provision;
 #[cfg(feature = "wifi")] pub mod wifi;
 
 /// 屏幕宽度（横屏 240）
