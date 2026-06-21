@@ -1,0 +1,21 @@
+[package]
+name = "ui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+stick_s3 = { path = "../stick-s3" }
+esp-idf-svc = { version = "0.52", default-features = false, features = ["alloc"] }
+esp-idf-hal = "0.46"
+embedded-hal = "1"
+log = "0.4"
+
+# slint — embedded mode (no desktop backend)
+slint = { version = "=1.0.2", default-features = false, features = ["std"] }
+
+[build-dependencies]
+embuild = { version = "0.31", features = ["espidf"] }
+slint-build = "=1.0.2"
+
+[features]
+default = ["esp-idf-svc/native"]

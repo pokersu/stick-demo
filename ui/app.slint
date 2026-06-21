@@ -1,0 +1,103 @@
+// 纯 Slint 基础元素 — 无 std-widgets 依赖
+//
+// 设计：紧凑仪表盘，5 行信息适配 240×135 屏幕
+
+export component App {
+    width: 240px;
+    height: 135px;
+
+    // 属性 — 由 Rust 端更新
+    in-out property <string> acc: "0.00 0.00 0.00";
+    in-out property <string> gyr: "0.00 0.00 0.00";
+    in-out property <string> temp: "25.0 C";
+    in-out property <string> battery: "---";
+    in-out property <string> wifi: "wifi ready";
+    in-out property <string> mic: "0%";
+    in-out property <int> btn_count: 0;
+
+    // 背景
+    Rectangle {
+        background: black;
+        width: 100%;
+        height: 100%;
+
+        // 边框
+        Rectangle {
+            x: 0; y: 0;
+            width: 100%; height: 100%;
+            border-width: 1px;
+            border-color: white;
+        }
+    }
+
+    // 第 1 行: 加速度
+    Text {
+        x: 4px; y: 4px;
+        text: "A " + acc;
+        font-size: 10px;
+        color: white;
+    }
+
+    // 第 2 行: 陀螺仪
+    Text {
+        x: 4px; y: 20px;
+        text: "G " + gyr;
+        font-size: 10px;
+        color: white;
+    }
+
+    // 第 3 行: 温度 | 电池
+    Text {
+        x: 4px; y: 36px;
+        text: "T " + temp;
+        font-size: 10px;
+        color: white;
+    }
+    Text {
+        x: 100px; y: 36px;
+        text: battery;
+        font-size: 10px;
+        color: white;
+    }
+
+    // 第 4 行: WiFi 状态
+    Text {
+        x: 4px; y: 52px;
+        text: wifi;
+        font-size: 10px;
+        color: white;
+
+        // WiFi 点击矩形（透明按钮）
+        TouchArea {
+            width: 100%; height: 20px;
+            clicked => {
+                wifi_toggle();
+            }
+        }
+    }
+
+    // 第 5 行: 麦克风 | NVS
+    Text {
+        x: 4px; y: 68px;
+        text: "MIC " + mic;
+        font-size: 10px;
+        color: white;
+    }
+    Text {
+        x: 120px; y: 68px;
+        text: "NVS " + btn_count;
+        font-size: 10px;
+        color: white;
+    }
+
+    // 水平仪小球（简化版）
+    Rectangle {
+        x: 180px; y: 4px;
+        width: 56px; height: 56px;
+        border-width: 1px;
+        border-color: white;
+    }
+
+    // WiFi 按钮回调
+    callback wifi_toggle();
+}
