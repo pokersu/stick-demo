@@ -10,6 +10,9 @@
 //! - **每次 flush 必须重设 CASET/RASET**，芯片内部寄存器是易失的
 //! - **横屏时 MADCTL=0x64\**，colstart/rowstart 算法来自 M5GFX
 //! - **INVON 必须开启**，否则颜色反相（M5StickS3 面板特性）
+//! - **MAD_BGR=0x08 必须加** —— M5StickS3 面板是 BGR 顺序不是 RGB
+//!   （对应 M5GFX Panel_LCD::update_madctl 中 `_cfg.rgb_order ? MAD_RGB : MAD_BGR`）
+//! - **像素数据必须 swap_bytes()** 在 framebuffer 层处理，ST7789 要求大端字节序
 
 use crate::sleep::DisplaySleep;
 
@@ -54,18 +57,19 @@ const MAD_MY: u8 = 0x80;
 const MAD_MX: u8 = 0x40;
 const MAD_MV: u8 = 0x20;
 const MAD_ML: u8 = 0x10;
+const MAD_BGR:u8 = 0x08;
 const MAD_MH: u8 = 0x04;
 
-// M5GFX getMadCtl 旋转映射表
+// M5GFX getMadCtl 旋转映射表（默认加 BGR，M5StickS3 面板需要）
 const MADCTL_TABLE: [u8; 8] = [
-    0,                                          // 0
-    MAD_MV | MAD_MX | MAD_MH,                  // 1
-    MAD_MX | MAD_MH | MAD_MY | MAD_ML,          // 2
-    MAD_MV | MAD_MY | MAD_ML,                   // 3
-    MAD_MY | MAD_ML,                             // 4
-    MAD_MV,                                      // 5
-    MAD_MX | MAD_MH,                             // 6
-    MAD_MV | MAD_MX | MAD_MY | MAD_MH | MAD_ML, // 7
+    MAD_BGR,                                    // 0
+    MAD_MV | MAD_MX | MAD_MH | MAD_BGR,         // 1
+    MAD_MX | MAD_MH | MAD_MY | MAD_ML | MAD_BGR, // 2
+    MAD_MV | MAD_MY | MAD_ML | MAD_BGR,          // 3
+    MAD_MY | MAD_ML | MAD_BGR,                    // 4
+    MAD_MV | MAD_BGR,                             // 5
+    MAD_MX | MAD_MH | MAD_BGR,                    // 6
+    MAD_MV | MAD_MX | MAD_MY | MAD_MH | MAD_ML | MAD_BGR, // 7
 ];
 
 // M5GFX rowstart 条件掩码

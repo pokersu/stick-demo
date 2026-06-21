@@ -55,6 +55,6 @@ impl<'d> Mic<'d> {
             let a = s.unsigned_abs();
             if a > max_abs { max_abs = a; }
         }
-        (max_abs as u32 * 100 / 32768) as u8
+        (max_abs as u32 * 100 / 16000).min(100) as u8  // 灵敏度: 满量程的 ~50% 即 100%
     }
 }

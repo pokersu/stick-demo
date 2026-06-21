@@ -169,7 +169,7 @@ fn main() {
                 .draw(&mut fb);
             if mic_level > 0 {
                 let fill_w = (bar_w as u32) * (mic_level as u32) / 100;
-                let color = if mic_level < 50 { Rgb565::GREEN } else if mic_level < 80 { Rgb565::YELLOW } else { Rgb565::RED };
+                let color = if mic_level < 50 { Rgb565::new(0, 255, 0) } else if mic_level < 80 { Rgb565::new(255, 255, 0) } else { Rgb565::new(255, 0, 0) };
                 let _ = Rectangle::new(Point::new(bar_x + 1, y - 11), Size::new(fill_w.saturating_sub(2), bar_h.saturating_sub(2)))
                     .into_styled(PrimitiveStyle::with_fill(color))
                     .draw(&mut fb);
@@ -177,15 +177,21 @@ fn main() {
 
             // ── 右侧水平仪 ──
             let (cx, cy, r) = (200i32, 38i32, 28i32);
+            // 大圆环（白色）
             let _ = Circle::new(Point::new(cx - r, cy - r), (r * 2) as u32)
-                .into_styled(PrimitiveStyle::with_stroke(Rgb565::new(0, 180, 255), 1))
+                .into_styled(PrimitiveStyle::with_stroke(Rgb565::WHITE, 1))
                 .draw(&mut fb);
+            // 绿色水平参考环（稍大于小球）
+            let _ = Circle::new(Point::new(cx - 7, cy - 7), 14)
+                .into_styled(PrimitiveStyle::with_stroke(Rgb565::new(0, 255, 0), 1))
+                .draw(&mut fb);
+            // 十字线
             let _ = Line::new(Point::new(cx - r / 2, cy), Point::new(cx + r / 2, cy))
                 .into_styled(PrimitiveStyle::with_stroke(Rgb565::new(64, 64, 64), 1)).draw(&mut fb);
             let _ = Line::new(Point::new(cx, cy - r / 2), Point::new(cx, cy + r / 2))
                 .into_styled(PrimitiveStyle::with_stroke(Rgb565::new(64, 64, 64), 1)).draw(&mut fb);
 
-            // 水平仪小球
+            // 水平仪小球（黄色）
             let pitch = imu_data.acc_x.atan2(imu_data.acc_z.abs());
             let roll  = imu_data.acc_y.atan2(imu_data.acc_z.abs());
             let max_d = (r - 6) as f32;
@@ -196,7 +202,7 @@ fn main() {
                 .draw(&mut fb);
         }
 
-        display.flush(&buf);
+        display.flush(&mut buf);
 
         // ── 按键处理 ──
         if btns.btn_a_was_pressed() {

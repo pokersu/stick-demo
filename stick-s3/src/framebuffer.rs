@@ -5,6 +5,9 @@
 //! ## 坑点
 //! - **Fb 只是对 &mut [u16] 的包装**，不持有内存，由调用方管理生命周期
 //! - 坐标范围由 embedded-graphics 的 `Size::new(WIDTH, HEIGHT)` 决定
+//! - **像素必须 swap_bytes()** — ST7789 要求大端字节序，ESP32 是小端
+//! - **必须配合 MADCTL 的 MAD_BGR 位**（在 display.rs 中设置），否则 R/B 通道交换
+//!   swap_bytes 修正字节序，MAD_BGR 修正 BGR 顺序，两者缺一不可
 
 use crate::{HEIGHT, WIDTH};
 use embedded_graphics::{
@@ -41,7 +44,8 @@ impl DrawTarget for Fb<'_> {
             if coord.x < 0 || coord.y < 0 { continue; }
             let idx = coord.x as usize + coord.y as usize * w;
             if idx < len {
-                self.buf[idx] = color.into_storage();
+                // 字节交换 + BGR 模式适配 ST7789（M5GFX 标准做法）
+                self.buf[idx] = color.into_storage().swap_bytes();
             }
         }
         Ok(())
