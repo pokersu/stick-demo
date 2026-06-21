@@ -15,7 +15,7 @@ impl<'d> Led<'d> {
         Self { pin: PinDriver::output(pin).unwrap() }
     }
 
-        /// 点亮 LED
+    /// 点亮 LED
     pub fn on(&mut self)  { self.pin.set_high().unwrap(); }
     /// 关闭 LED
     pub fn off(&mut self) { self.pin.set_low().unwrap(); }

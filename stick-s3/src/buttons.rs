@@ -34,7 +34,6 @@ impl<'d> Buttons<'d> {
         Self { btn_a, btn_b, a_prev, b_prev }
     }
 
-    /// Button A 当前是否按下
     /// Button A 当前是否按下（低电平有效）
     pub fn btn_a_is_pressed(&self) -> bool { self.btn_a.is_low() }
 
@@ -76,7 +75,6 @@ impl<'d> Buttons<'d> {
 
 /// 按键标识
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// 按键标识
 pub enum Button {
     /// Button A (GPIO11)
     A,

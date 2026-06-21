@@ -15,9 +15,10 @@ esac
 
 IMAGE="espressif/idf-rust:esp32s3_1.93.0.0"
 
-# 缓存目录（registry 子目录 = crate 缓存，不覆盖 cargo 本体）
-REGISTRY_CACHE="${HOME}/.cargo-esp-registry"
-mkdir -p "${REGISTRY_CACHE}" "${HOME}/.espressif"
+# 缓存目录
+REGISTRY_CACHE="./registry-cache"
+ESPRESSIF_DIR="./.espressif"
+mkdir -p "${REGISTRY_CACHE}" "${ESPRESSIF_DIR}" ./git-cache
 
 echo "=> Image: ${IMAGE}"
 echo "=> Profile: ${PROFILE}"
@@ -29,8 +30,8 @@ docker run --rm \
     -v "$(pwd)":/project \
     -v "$(pwd)/target":/project/target \
     -v "${HOME}/.espressif":/root/.espressif \
-    -v "${HOME}/.cargo/registry":/home/esp/.cargo/registry \
-    -v "${HOME}/.cargo/git":/home/esp/.cargo/git \
+    -v "$(pwd)/registry-cache":/home/esp/.cargo/registry \
+    -v "$(pwd)/git-cache":/home/esp/.cargo/git \
     -w /project \
     -e IDF_PATH=/project/.embuild/espressif/esp-idf/v5.2.3 \
     "${IMAGE}" \

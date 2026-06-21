@@ -1,4 +1,9 @@
 //! NVS 持久存储 (raw ESP-IDF API)
+//!
+//! ## 坑点
+//! - **不同命名空间之间数据隔离**，看不到彼此的内容
+//! - **使用前必须先调用 `nvs_flash_init()`**（内部自动调用）
+//! - **写入后必须 commit** 否则数据不持久（set 方法已自动 commit）
 
 use core::ptr;
 use esp_idf_svc::sys::*;
@@ -12,12 +17,11 @@ pub struct Nvs {
 impl Nvs {
     fn init() {
         unsafe {
-            let mut r = nvs_flash_init();
+            let r = nvs_flash_init();
             if r == 0x1100 || r == 0x1106 { // NO_FREE_PAGES | NEW_VERSION_FOUND
                 nvs_flash_erase();
-                r = nvs_flash_init();
+                nvs_flash_init(); // 再次初始化，返回值已不需要
             }
-            if r != 0 { /* warn: nvs_flash_init failed */ }
         }
     }
 

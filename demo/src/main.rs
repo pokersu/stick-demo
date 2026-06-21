@@ -15,7 +15,7 @@ use embedded_hal::{delay::DelayNs, i2c::I2c as _};
 use esp_idf_hal::{delay::Ets, gpio::PinDriver, peripherals::Peripherals};
 use stick_s3::{
     buttons::Buttons, display::Display, es8311, framebuffer::Fb,
-    i2c_bus::I2cBus, imu::Imu, mic::Mic, pmic, sleep, speaker::Speaker, HEIGHT, WIDTH,
+    i2c_bus::I2cBus, imu::Imu, mic::Mic, nvs::Nvs, pmic, sleep, HEIGHT, WIDTH,
 };
 
 const SSID: &str = "your_ssid";
@@ -86,7 +86,13 @@ fn main() {
     let mut mic_level: u8 = 0;
 
     // ── 扬声器 (I2S0 TX) — 暂时禁用（与 Mic 时钟冲突） ──
-    let _speaker: Option<Speaker> = None;
+    // let _speaker = Speaker::new(...)
+
+    // ── NVS 持久计数（按键 A/B 次数，跨重启保留） ──
+    let mut nvs = Nvs::new("buttons").ok();
+    let mut btn_a_count: i32 = nvs.as_ref().and_then(|n| n.get_i32("a")).unwrap_or(0);
+    let mut btn_b_count: i32 = nvs.as_ref().and_then(|n| n.get_i32("b")).unwrap_or(0);
+    log::info!("NVS: BtnA={} BtnB={}", btn_a_count, btn_b_count);
 
     // ── 按键 ──
     let mut btns = Buttons::new(pins.gpio11, pins.gpio12);
@@ -131,7 +137,7 @@ fn main() {
             let mut y = 16i32;
 
             // ── IMU 数据 ──
-            if let Some(ref _imu) = imu {
+            if imu.is_some() {
                 s.clear(); let _ = write!(s, "A {:5.3} {:5.3} {:5.3}", imu_data.acc_x, imu_data.acc_y, imu_data.acc_z);
                 let _ = Text::new(&s, Point::new(4, y), white).draw(&mut fb); y += 17;
                 s.clear(); let _ = write!(s, "G {:5.3} {:5.3} {:5.3}", imu_data.gyr_x, imu_data.gyr_y, imu_data.gyr_z);
@@ -168,12 +174,17 @@ fn main() {
                 .into_styled(PrimitiveStyle::with_stroke(Rgb565::new(64, 64, 64), 1))
                 .draw(&mut fb);
             if mic_level > 0 {
-                let fill_w = (bar_w as u32) * (mic_level as u32) / 100;
+                let fill_w = (bar_w) * (mic_level as u32) / 100;
                 let color = if mic_level < 50 { Rgb565::new(0, 255, 0) } else if mic_level < 80 { Rgb565::new(255, 255, 0) } else { Rgb565::new(255, 0, 0) };
                 let _ = Rectangle::new(Point::new(bar_x + 1, y - 11), Size::new(fill_w.saturating_sub(2), bar_h.saturating_sub(2)))
                     .into_styled(PrimitiveStyle::with_fill(color))
                     .draw(&mut fb);
             }
+
+            // ── NVS 按键计数 ──
+            y += 17;
+            s.clear(); let _ = write!(s, "NVS {:>3}", btn_a_count + btn_b_count);
+            let _ = Text::new(&s, Point::new(4, y), white).draw(&mut fb);
 
             // ── 右侧水平仪 ──
             let (cx, cy, r) = (200i32, 38i32, 28i32);
@@ -191,21 +202,27 @@ fn main() {
             let _ = Line::new(Point::new(cx, cy - r / 2), Point::new(cx, cy + r / 2))
                 .into_styled(PrimitiveStyle::with_stroke(Rgb565::new(64, 64, 64), 1)).draw(&mut fb);
 
-            // 水平仪小球（黄色）
+            // 水平仪小球（在绿色圆环内变绿，否则黄色）
             let pitch = imu_data.acc_x.atan2(imu_data.acc_z.abs());
             let roll  = imu_data.acc_y.atan2(imu_data.acc_z.abs());
             let max_d = (r - 6) as f32;
             let lx = cx + (pitch / std::f32::consts::FRAC_PI_4 * max_d) as i32;
             let ly = cy + (roll  / std::f32::consts::FRAC_PI_4 * max_d) as i32;
+            let inside = (lx - cx).pow(2) + (ly - cy).pow(2) <= 7 * 7;
+            let ball_color = if inside { Rgb565::new(0, 255, 0) } else { Rgb565::YELLOW };
             let _ = Circle::new(Point::new(lx - 4, ly - 4), 8)
-                .into_styled(PrimitiveStyle::with_fill(Rgb565::YELLOW))
+                .into_styled(PrimitiveStyle::with_fill(ball_color))
                 .draw(&mut fb);
         }
 
         display.flush(&mut buf);
 
-        // ── 按键处理 ──
+        // ── 按键处理（NVS 计数 + 功能） ──
         if btns.btn_a_was_pressed() {
+            // 计数
+            btn_a_count += 1;
+            if let Some(ref mut n) = nvs { let _ = n.set_i32("a", btn_a_count); }
+
             if let Some(ref mut w) = wifi {
                 if wifi_connected || wifi_connecting {
                     wifi_ip = String::from("wifi ready");
@@ -220,6 +237,10 @@ fn main() {
             }
         }
         if btns.btn_b_was_pressed() {
+            // 计数
+            btn_b_count += 1;
+            if let Some(ref mut n) = nvs { let _ = n.set_i32("b", btn_b_count); }
+
             // 进入深睡前释放可能阻止休眠的外设
             let mic = mic.take();
             let wifi = wifi.take();

@@ -3,6 +3,9 @@ target/
 .embuild/
 .cargo/
 .codegraph/
+registry-cache/
+git-cache/
+.espressif/
 
 # IDE
 .idea/
