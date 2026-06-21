@@ -539,8 +539,12 @@ pub struct ImuData {
     pub temp: f32,
 }
 
-/// BMI270 IMU 驱动
-pub struct Imu<I2C: I2c> { i2c: I2C, addr: u8 }
+/// BMI270 IMU 驱动 — 每帧调用 tick() 更新缓存数据
+pub struct Imu<I2C: I2c> {
+    i2c: I2C,
+    addr: u8,
+    last: ImuData,
+}
 
 impl<I2C: I2c> Imu<I2C> {
     /// 初始化 BMI270：加载配置、等待 init_ok、使能传感器
@@ -626,8 +630,18 @@ impl<I2C: I2c> Imu<I2C> {
         log::info!("BMI270 raw=[{:02X}{:02X}{:02X}{:02X}{:02X}{:02X}]",
             r[0], r[1], r[2], r[3], r[4], r[5]);
 
-        Ok(Self { i2c, addr })
+        Ok(Self { i2c, addr, last: ImuData::default() })
     }
+
+    /// 每帧调用 — 读取传感器并缓存最新数据
+    pub fn tick(&mut self) {
+        if let Ok(d) = self.read_all() {
+            self.last = d;
+        }
+    }
+
+    /// 获取缓存的最新 IMU 数据
+    pub fn data(&self) -> &ImuData { &self.last }
 
     /// 读取 IMU 全量数据（加速度 + 陀螺仪 + 温度）
     pub fn read_all(&mut self) -> Result<ImuData, Error<I2C::Error>> {

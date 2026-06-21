@@ -16,9 +16,10 @@ use esp_idf_hal::{
     },
 };
 
-/// 麦克风音量 0-100
+/// 麦克风音量 0-100 — 每帧调用 tick() 更新缓存
 pub struct Mic<'d> {
     rx: I2sDriver<'d, I2sRx>,
+    level: u8,
 }
 
 impl<'d> Mic<'d> {
@@ -40,10 +41,22 @@ impl<'d> Mic<'d> {
         let mut rx = I2sDriver::new_std_rx(i2s, &std_cfg, bclk, din, Some(mclk), ws)
             .map_err(|_| "I2S RX")?;
         rx.rx_enable().ok();
-        Ok(Self { rx })
+        Ok(Self { rx, level: 0 })
     }
 
-    /// 读取麦克风音量 (0-100)
+    /// 每帧调用 — 读取音量并缓存最新值（带自然衰减）
+    pub fn tick(&mut self) {
+        let v = self.read_volume();
+        if v > self.level {
+            self.level = v;
+        } else {
+            self.level = self.level.saturating_sub(2);
+        }
+    }
+
+    /// 获取缓存的最新音量 (0-100)
+    pub fn volume(&self) -> u8 { self.level }
+
     /// 读取麦克风音量 (0-100)，基于峰值
     pub fn read_volume(&mut self) -> u8 {
         let mut buf = [0u8; 128];

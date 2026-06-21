@@ -10,6 +10,8 @@ embedded-hal = "1"
 esp-idf-hal = "0.46"
 embedded-graphics = "0.8"
 log = "0.4"
+futures = { version = "0.3", features = ["executor"] }
+futures-timer = "3.0"
 
 [features]
 default = ["esp-idf-svc/native"]

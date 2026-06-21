@@ -1,100 +1,157 @@
-//! WiFi STA 模式驱动 — 自动扫描 + 凭据匹配
+//! WiFi STA 模式驱动 — 完全非阻塞状态机
+//!
+//! 所有 WiFi 操作（扫描、连接）拆分为多帧状态机，
+//! 每帧调用 `tick()` 推进状态，不阻塞主循环。
+//!
+//! ## 用法
+//! ```ignore
+//! wifi.start_auto_connect();     // 触发扫描
+//! loop {
+//!     wifi.tick();               // 每帧推进
+//!     update_sensors();          // 不卡顿
+//! }
+//! wifi.status()  // 查看状态
+//! ```
 //!
 //! ## 坑点
-//! - **BlockingWifi::connect() 会阻塞**几秒等待事件响应，不可在主循环直接调用
-//! - **改用 raw esp_wifi_connect()** 只触发连接，不等待
-//! - **ip() 是瞬时快照**，连接成功后需要时间才能获取到 IP
-//! - **NVS 键名最大 15 字节**，SSID 超过此长度的无法直接作为键名
-//!   （可用 provision.json 配置短别名代替）
+//! - **NVS 键名最大 15 字节**，SSID 过长的无法直接作为键名
+//! - **连接使用原始 esp_wifi_connect()** 只触发命令，不阻塞等待事件
+//! - **ip() 是瞬时快照**，连接成功后需要时间才能获取到
 
 use crate::nvs::Nvs;
 use esp_idf_svc::{
-    eventloop::EspSystemEventLoop,
     nvs::EspDefaultNvsPartition,
     sys::{self, EspError},
-    wifi::{BlockingWifi, ClientConfiguration, Configuration, EspWifi},
+    wifi::{ClientConfiguration, Configuration, EspWifi},
 };
 
-/// WiFi STA 模式驱动 — 完全非阻塞
-///
-/// ## 用法
-/// ```ignore
-/// let mut wifi = Wifi::new(modem)?;
-/// wifi.auto_connect(); // 扫描并按 NVS 凭据自动连接
-/// // 主循环中通过 ip() 检查是否连上
-/// ```
+/// WiFi 连接状态
+#[derive(Debug, Clone, PartialEq)]
+pub enum WifiStatus {
+    Idle,
+    Scanning,
+    Connecting(String), // 正在连接某 SSID
+    Connected(String),  // 已连上某 SSID
+    Failed(&'static str),
+}
+
+/// WiFi STA 模式驱动 — 状态机
 pub struct Wifi {
-    wifi: BlockingWifi<EspWifi<'static>>,
-    configured: bool,
+    wifi: EspWifi<'static>,
+    status: WifiStatus,
 }
 
 impl Wifi {
     pub fn new(modem: esp_idf_hal::modem::Modem) -> Result<Self, EspError> {
         let nvs = EspDefaultNvsPartition::take()?;
-        let sl = EspSystemEventLoop::take()?;
-        let w = EspWifi::new(modem, sl.clone(), Some(nvs))?;
-        let mut w = BlockingWifi::wrap(w, sl)?;
+        let sl = esp_idf_svc::eventloop::EspSystemEventLoop::take()?;
+        let mut w = EspWifi::new(modem, sl, Some(nvs))?;
         w.start()?;
-        let wifi: BlockingWifi<EspWifi<'static>> = unsafe { core::mem::transmute(w) };
-        Ok(Self { wifi, configured: false })
+        let wifi: EspWifi<'static> = unsafe { core::mem::transmute(w) };
+        log::info!("WiFi: started");
+        Ok(Self { wifi, status: WifiStatus::Idle })
     }
 
-    /// 获取 STA 的 IPv4 地址（`None` 表示未连上）
+    /// 获取 STA 的 IPv4 地址
     pub fn ip(&self) -> Option<embedded_svc::ipv4::Ipv4Addr> {
-        self.wifi.wifi().sta_netif().get_ip_info().ok().map(|i| i.ip)
+        self.wifi.sta_netif().get_ip_info().ok().map(|i| i.ip)
     }
 
-    /// 扫描 → 匹配 NVS "wifi" 命名空间中的凭据 → 自动连接
-    ///
-    /// 遍历扫描到的 AP，如果其 SSID 在 NVS "wifi" 命名空间中有对应密码，
-    /// 则立即连接（非阻塞）并返回该 SSID。
-    /// 若无可匹配网络返回 `None`。
-    pub fn auto_connect(&mut self) -> Option<String> {
-        // ⚠ 如果已经配置过连接，先断开重置
+    /// 当前状态
+    pub fn status(&self) -> &WifiStatus { &self.status }
+
+    /// 触发自动连接：扫描 → 匹配 NVS → 连接（非阻塞，返回后主循环需每帧调用 tick()）
+    pub fn start_auto_connect(&mut self) {
         self.disconnect();
-
-        let aps = self.wifi.scan().ok()?;
-        log::info!("WiFi scan: found {} APs", aps.len());
-
-        for ap in &aps {
-            let ssid = ap.ssid.as_str();
-            if ssid.is_empty() { continue; }
-            log::info!("WiFi scan: AP '{}' rssi={}", ssid, ap.signal_strength);
-
-            // 在 NVS "wifi" 命名空间中查找该 SSID 的密码
-            match Nvs::new("wifi") {
-                Ok(nvs) => {
-                    if let Some(pass) = nvs.get_str(ssid) {
-                        log::info!("WiFi: matched {} -> connecting", ssid);
-                        self.connect_raw(ssid, &pass);
-                        return Some(ssid.to_string());
-                    } else {
-                        log::info!("WiFi: '{}' not in NVS wifi namespace", ssid);
-                    }
-                }
-                Err(e) => log::warn!("WiFi: Nvs::new(wifi) failed: {}", e),
+        match self.wifi.start_scan(&Default::default(), false) {
+            Ok(_) => {
+                self.status = WifiStatus::Scanning;
+                log::info!("WiFi: scan started");
+            }
+            Err(e) => {
+                self.status = WifiStatus::Failed("scan start failed");
+                log::warn!("WiFi: start_scan failed: {}", e);
             }
         }
-        log::info!("WiFi scan: no known networks");
-        None
     }
 
-    /// ⚠ 设置配置并发起连接（非阻塞）— 原始 API
+    /// 每帧调用 — 推进 WiFi 状态机
     ///
-    /// 使用底层的 esp_wifi_connect() 只触发连接命令，
-    /// 不等待事件，避免阻塞主循环。
-    fn connect_raw(&mut self, ssid: &str, password: &str) {
-        let _ = self.wifi.set_configuration(&Configuration::Client(ClientConfiguration {
-            ssid: ssid.try_into().unwrap(), password: password.try_into().unwrap(), ..Default::default()
-        }));
-        // ⚠ 用原始 API 避免 BlockingWifi::connect() 的阻塞等待
-        unsafe { let _ = sys::esp_wifi_connect(); }
-        self.configured = true;
+    /// 应在主循环的每一帧调用，配合 `status()` 更新显示。
+    pub fn tick(&mut self) {
+        match &self.status {
+            // ── 扫描中：轮询是否完成 ──
+            WifiStatus::Scanning => {
+                match self.wifi.is_scan_done() {
+                    Ok(true) => {
+                        // 扫描完成，取结果匹配
+                        match self.wifi.get_scan_result() {
+                            Ok(aps) => {
+                                log::info!("WiFi: scan done, {} APs", aps.len());
+                                let matched = self.match_and_connect(&aps);
+                                if let Some(ssid) = matched {
+                                    self.status = WifiStatus::Connecting(ssid);
+                                } else {
+                                    self.status = WifiStatus::Failed("no known wifi");
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("WiFi: get_scan_result failed: {}", e);
+                                self.status = WifiStatus::Failed("scan result error");
+                            }
+                        }
+                    }
+                    Ok(false) => { /* 还在扫描，继续等 */ }
+                    Err(e) => {
+                        log::warn!("WiFi: is_scan_done error: {}", e);
+                        self.status = WifiStatus::Failed("scan error");
+                    }
+                }
+            }
+
+            // ── 连接中：轮询是否已获取 IP ──
+            WifiStatus::Connecting(ssid) => {
+                if self.ip().map_or(false, |ip| !ip.is_unspecified()) {
+                    log::info!("WiFi: connected to {} via {}", ssid, self.ip().unwrap());
+                    self.status = WifiStatus::Connected(ssid.clone());
+                }
+                // 连接超时? 目前由调用方自行决定是否重试
+            }
+
+            // ── 空闲/已连接/失败：什么都不做 ──
+            WifiStatus::Idle | WifiStatus::Connected(_) | WifiStatus::Failed(_) => {}
+        }
+    }
+
+    /// 从 AP 列表匹配 NVS "wifi" 命名空间中的凭据并触发连接
+    ///
+    /// 返回匹配到的 SSID（如果触发连接成功），否则返回 None。
+    fn match_and_connect(&mut self, aps: &[embedded_svc::wifi::AccessPointInfo]) -> Option<String> {
+        for ap in aps {
+            let ssid = ap.ssid.as_str();
+            if ssid.is_empty() { continue; }
+            log::info!("WiFi: AP '{}' rssi={}", ssid, ap.signal_strength);
+
+            if let Ok(nvs) = Nvs::new("wifi") {
+                if let Some(pass) = nvs.get_str(ssid) {
+                    log::info!("WiFi: matched {}", ssid);
+                    let _ = self.wifi.set_configuration(&Configuration::Client(ClientConfiguration {
+                        ssid: ssid.try_into().unwrap(),
+                        password: pass.as_str().try_into().unwrap(),
+                        ..Default::default()
+                    }));
+                    // ⚠ 用原始 API 避免阻塞等待连接事件
+                    unsafe { let _ = sys::esp_wifi_connect(); }
+                    return Some(ssid.to_string());
+                }
+            }
+        }
+        None
     }
 
     /// 断开连接
     pub fn disconnect(&mut self) {
         let _ = self.wifi.disconnect();
-        self.configured = false;
+        self.status = WifiStatus::Idle;
     }
 }

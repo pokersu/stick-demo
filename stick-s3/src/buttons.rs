@@ -61,6 +61,9 @@ impl<'d> Buttons<'d> {
         self.btn_a_was_pressed() || self.btn_b_was_pressed()
     }
 
+    /// 每帧调用 — 推进边沿检测状态（等价于 update()）
+    pub fn tick(&mut self) { self.update(); }
+
     /// 更新按钮状态（在循环中调用以保持边沿检测准确）
     pub fn update(&mut self) {
         self.a_prev = self.btn_a.is_high();
