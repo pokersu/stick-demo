@@ -24,6 +24,15 @@ echo "=> Image: ${IMAGE}"
 echo "=> Profile: ${PROFILE}"
 docker pull "${IMAGE}" 2>&1 | tail -1
 
+# 安装 cmake（需要 root 权限）
+docker run --rm --user root \
+    -v "$(pwd)":/project \
+    -v "$(pwd)/registry-cache":/home/esp/.cargo/registry \
+    -v "$(pwd)/git-cache":/home/esp/.cargo/git \
+    -w /project \
+    "${IMAGE}" \
+    sh -c 'apt-get update -qq && apt-get install -y -qq cmake 2>&1 | tail -2'
+
 echo "=> Building..."
 
 docker run --rm \
@@ -34,6 +43,7 @@ docker run --rm \
     -v "$(pwd)/git-cache":/home/esp/.cargo/git \
     -w /project \
     -e IDF_PATH=/project/.embuild/espressif/esp-idf/v5.2.3 \
+    -e DEP_LV_CONFIG_PATH=/project/ui \
     "${IMAGE}" \
     sh -c "${CARGO_CMD} && espflash save-image --chip ${CHIP} /project/${ELF} /project/${BIN}"
 

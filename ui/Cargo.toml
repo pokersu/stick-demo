@@ -10,12 +10,11 @@ esp-idf-hal = "0.46"
 embedded-hal = "1"
 log = "0.4"
 
-# slint — embedded mode (no desktop backend)
-slint = { version = "=1.0.2", default-features = false, features = ["std"] }
+# LVGL — 嵌入式 GUI 框架 (C 绑定)
+lvgl = { version = "0.6", default-features = false }
 
 [build-dependencies]
 embuild = { version = "0.31", features = ["espidf"] }
-slint-build = "=1.0.2"
 
 [features]
 default = ["esp-idf-svc/native"]
