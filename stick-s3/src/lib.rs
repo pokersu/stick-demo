@@ -84,10 +84,9 @@ pub mod led;
 pub mod battery;
 
 // ── WiFi (feature-gated) ──
-#[cfg(feature = "wifi")]
-pub mod nvs;
-#[cfg(feature = "wifi")]
-pub mod wifi;
+#[cfg(feature = "wifi")] pub mod wifi;
+// nvs — NVS 持久存储 (raw API)，尚未测试验证
+// #[cfg(feature = "wifi")] pub mod nvs;
 
 /// 屏幕宽度（横屏 240）
 pub const WIDTH: u32 = 240;
